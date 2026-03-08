@@ -203,8 +203,8 @@ class FilterFunction(nn.Module):
         # Apply tanh gating
         h = torch.tanh(h)
         
-        # Transpose to (filter_order, batch, seq_len, kernel_size)
-        return h.transpose(1, 2)
+        # Permute to (filter_order, batch, seq_len, kernel_size)
+        return h.permute(2, 0, 1, 3)
 
 
 class GatedDepthwiseConv1d(nn.Module):

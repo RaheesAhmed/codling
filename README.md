@@ -145,8 +145,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ---
 
-<div align="center">
 
-**Star us on GitHub** ⭐ | **Join our Discord** 💬 | **Follow on X** 🐦
-
-</div>
