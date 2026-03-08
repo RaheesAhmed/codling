@@ -638,10 +638,12 @@ class Trainer:
             with autocast(dtype=torch.bfloat16 if self.config.precision == "bf16" 
                          else torch.float16):
                 outputs = self.model(input_ids)
-                loss = self._compute_loss(outputs.logits, labels)
+                logits = outputs.logits if hasattr(outputs, 'logits') else outputs['logits']
+                loss = self._compute_loss(logits, labels)
         else:
             outputs = self.model(input_ids)
-            loss = self._compute_loss(outputs.logits, labels)
+            logits = outputs.logits if hasattr(outputs, 'logits') else outputs['logits']
+            loss = self._compute_loss(logits, labels)
         
         # Scale loss for gradient accumulation
         loss = loss / self.config.gradient_accumulation_steps
@@ -775,14 +777,17 @@ class Trainer:
                 if self.config.precision == "bf16":
                     with autocast(dtype=torch.bfloat16):
                         outputs = self.model(input_ids)
-                        loss = self._compute_loss(outputs.logits, labels)
+                        logits = outputs.logits if hasattr(outputs, 'logits') else outputs['logits']
+                        loss = self._compute_loss(logits, labels)
                 elif self.config.precision == "fp16":
                     with autocast(dtype=torch.float16):
                         outputs = self.model(input_ids)
-                        loss = self._compute_loss(outputs.logits, labels)
+                        logits = outputs.logits if hasattr(outputs, 'logits') else outputs['logits']
+                        loss = self._compute_loss(logits, labels)
                 else:
                     outputs = self.model(input_ids)
-                    loss = self._compute_loss(outputs.logits, labels)
+                    logits = outputs.logits if hasattr(outputs, 'logits') else outputs['logits']
+                    loss = self._compute_loss(logits, labels)
                 
                 total_loss += loss.item()
                 num_batches += 1
@@ -857,8 +862,13 @@ class Trainer:
         
         # Save config
         config_path = os.path.join(checkpoint_dir, "config.json")
+        config_dict = asdict(self.config)
+        # Remove non-serializable fields
+        for key in ['model', 'train_dataloader', 'eval_dataloader']:
+            config_dict.pop(key, None)
+            
         with open(config_path, 'w') as f:
-            json.dump(asdict(self.config), f, indent=2)
+            json.dump(config_dict, f, indent=2)
         
         logger.info(f"Checkpoint saved: {checkpoint_dir}")
         

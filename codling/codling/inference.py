@@ -638,18 +638,29 @@ class CodlingGenerator:
             Tuple of (sampled token IDs, log probability)
         """
         batch_size = logits.shape[0]
+        # Ensure logprobs takes the right shape
         logprobs = torch.zeros(batch_size, device=self.device)
         
         # Apply repetition penalty
         if config.repetition_penalty != 1.0 and repetition_mask is not None:
             logits = logits.clone()
-            # Where repetition_mask is 1, divide by penalty
-            # Where repetition_mask is 0, multiply by penalty
-            logits = torch.where(
-                repetition_mask > 0,
-                logits / config.repetition_penalty,
-                logits * config.repetition_penalty
+            
+            # repetition_mask is shape [batch_size, vocab_size]
+            # penalize negative logits by multiplying, positive logits by dividing
+            penalty = config.repetition_penalty
+            
+            # Where repetition_mask is True (token was seen), apply penalty
+            penalized_logits = torch.where(
+                logits < 0,
+                logits * penalty,
+                logits / penalty
             )
+            
+            # Safe where check
+            if repetition_mask.shape == logits.shape:
+                logits = torch.where(repetition_mask, penalized_logits, logits)
+            else:
+                warnings.warn(f"Repetition mask shape {repetition_mask.shape} does not match logits {logits.shape}")
         
         # Apply temperature
         if config.temperature != 1.0:
@@ -752,18 +763,22 @@ class CodlingGenerator:
             num_last_tokens: Number of last tokens to consider
             
         Returns:
-            Mask tensor of same shape as tokens
+            Mask tensor of shape [batch, vocab_size]
         """
         if tokens.shape[1] == 0:
             return None
         
-        # Only consider recent tokens for efficiency
-        seq_len = tokens.shape[1]
+        batch_size, seq_len = tokens.shape
         look_back = min(num_last_tokens, seq_len)
         
-        # Create mask for last N tokens
-        mask = torch.zeros_like(tokens, dtype=torch.float32)
-        mask[:, -look_back:] = 1.0
+        # Get recent tokens [batch, look_back]
+        recent_tokens = tokens[:, -look_back:]
+        
+        # Create mask [batch, vocab_size]
+        mask = torch.zeros(batch_size, self.vocab_size, dtype=torch.bool, device=self.device)
+        
+        # Set 1 for tokens that appear in recent_tokens
+        mask.scatter_(1, recent_tokens, True)
         
         return mask
     
@@ -785,8 +800,7 @@ class CodlingGenerator:
         with torch.no_grad():
             # Forward pass through model
             outputs = self.model(
-                input_ids=input_ids,
-                return_dict=True,
+                input_ids=input_ids
             )
             
             # Cache hidden states
@@ -823,8 +837,7 @@ class CodlingGenerator:
         """
         with torch.no_grad():
             outputs = self.model(
-                input_ids=input_ids,
-                return_dict=True,
+                input_ids=input_ids
             )
             
             if hasattr(outputs, 'logits'):
