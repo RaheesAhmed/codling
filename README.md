@@ -69,7 +69,7 @@ print(f"Params: {sum(p.numel() for p in model.parameters())/1e6:.1f}M")
 
 ```python
 # Clone and setup
-!git clone https://github.com/yourusername/codling.git
+!git clone https://github.com/RaheesAhmed/codling.git
 %cd codling
 !pip install -r requirements.txt
 
